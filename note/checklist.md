@@ -1,0 +1,14 @@
+- IF阶段检查完毕
+- ID阶段中关于ctrl信号的生成，由于变成了流水线，所以NPCop不能放在ID阶段确定了，这部分的实现不知道是否正确
+- ID除了前面提到的都检查完毕
+
+- 单周期代码比对
+    - ctrl比对完毕
+    - regfile比对完毕
+    - ext比对完毕，发现`EXT_CTRL_BTYPE:  immout<={ {29{ bimm[11]}},bimm[11:0], 1'b0} ; 错误
+    - alu 比对完毕
+    - dm 比对完毕，dmtype没实现
+    - def应该没问题，大致比对了一下
+    - mux融入pipeline，不方便检查
+    - PC和NPC融入到了pipelin中，不方便检查
+    - DMtype这一特点暂时忽略，后面测试有问题再加
