@@ -1,26 +1,38 @@
 module pipeline_sccomp(clk, rstn, sw_i, reg_sel, reg_data, disp_seg_o, disp_an_o);
    input          clk;
    input          rstn;
-   input [15:0]   sw_i;
+   input [15:0]   sw_i;  // 15-speed, 14-11: instr, reg, alu, dmem; 1-pause; 0-display
    input [4:0]    reg_sel;
    output [31:0]  reg_data;
+   output [7:0]   disp_seg_o;
+   output [7:0]   disp_an_o;
    
    // link between every part
    wire [31:0]    instr;
    wire [31:0]    PC;
    wire           MemWrite;
-   wire [31:0]    dm_addr, dm_din, dm_dout, dm_type;
-   
+   wire [31:0]    dm_addr, dm_din, dm_dout;
+   wire [2:0] dm_type;
    wire rst = ~rstn;
+
+   wire cpu_pause;
+   assign cpu_pause = sw_i[1];
 
    // divide clock for display
    reg [31:0] clkdiv;
    wire clk_cpu;
+   wire clk_select;
 
    // for display
    reg [63:0] display_data;
-   reg [5:0] led_data_addr;
-   reg [63:0] led_disp_data;
+   reg [63:0] led_disp_data = 64'hFFFFFFFFFFFFFFFF;
+   parameter REG_ADDR_NUM = 32;
+   parameter DMEM_ADDR_NUM = 128;
+   wire [31:0] alu_disp_data;
+   reg [31:0] reg_disp_data;
+   reg [31:0] dmem_data;
+   reg [4:0] reg_addr;
+   reg [6:0] dmem_addr;
 
    //clock divider
    always @(posedge clk or negedge rstn) begin
@@ -29,7 +41,8 @@ module pipeline_sccomp(clk, rstn, sw_i, reg_sel, reg_data, disp_seg_o, disp_an_o
       else
          clkdiv <= clkdiv + 1'b1;
    end
-   assign clk_cpu = (sw_i[15]) ? clkdiv[26] : clkdiv[0];  //speed and slow down
+   assign clk_select = (sw_i[15]) ? clkdiv[26] : clk;  //speed up and slow down, 0 stands for speed up, 1 stands for slow down
+   assign clk_cpu = cpu_pause ? 1'b0 : clk_select;
 
   // instantiation of pipeline CPU   
    pipeline_cpu U_pipeline_CPU(
@@ -45,8 +58,8 @@ module pipeline_sccomp(clk, rstn, sw_i, reg_sel, reg_data, disp_seg_o, disp_an_o
          .reg_sel(reg_sel),         // input:  register selection
          .reg_data(reg_data)        // output: register data
          );
-         
-  // instantiation of data memory  
+
+   // instantiation of data memory  
    dm    U_DM(
          .clk(clk_cpu),           // input:  cpu clock
          .DMWr(MemWrite),     // input:  ram write
@@ -72,64 +85,24 @@ module pipeline_sccomp(clk, rstn, sw_i, reg_sel, reg_data, disp_seg_o, disp_an_o
       .sel(disp_an_o)
    );
 
+   assign alu_disp_data = U_pipeline_CPU.EXMEM_ALUOut; // ALU output
 
    //this always block is used to demostrate the state of each component
    always @(posedge clk_cpu or negedge rstn) begin
       //clear
       if (!rstn) begin
-         led_data_addr <= 6'd0;
-         rom_addr <= 0;
          reg_addr <= 0;
-         alu_disp <= 0;
          dmem_addr <= 0;
          led_disp_data <= 64'hFFFFFFFFFFFFFFFF;
-      
-      // sw_i[0]=1 sleep
-      end else if (sw_i[0] == 1'b1)begin                                               
-         if (led_data_addr == LED_DATA_NUM) begin
-               led_data_addr <= 6'd0;
-               led_disp_data <= 64'hFFFFFFFFFFFFFFFF;
-         end else begin
-               led_disp_data <= LED_DATA[led_data_addr];           
-               led_data_addr <= led_data_addr + 1'b1;
-         end
+      //display other parts' contents
       end else begin
-         //display ROM,
-         if(sw_i[14] == 1'b1)begin
-               if(sw_i[1] == 1'b0)begin
-                  if (rom_addr == ROM_ADDR_NUM)begin
-                     rom_addr <= 0;
-                  end else begin
-                     rom_addr <= rom_addr + 1;
-                  end
-               end
-               else begin rom_addr = rom_addr; end
-         end
-         //display REG_FILE
-         else if(sw_i[13] == 1)begin
+         if(sw_i[13] == 1)begin
                if(reg_addr == REG_ADDR_NUM)begin
-                  reg_addr<=0;
-                  reg_data <= 32'hFFFFFFFF;
+                  reg_addr <= 0;
+                  reg_disp_data <= 32'hFFFFFFFF;
                end else begin
                   reg_addr <= reg_addr + 1'b1;
-                  reg_data <= U_RF.rf[reg_addr];
-               end
-         end
-         //display ALU
-         else if(sw_i[12] == 1'b1) begin
-               case(alu_disp)
-               3'b000: alu_disp_data <= U_ALU.A;
-               3'b001: alu_disp_data <= U_ALU.B;
-               3'b010: alu_disp_data <= U_ALU.C;
-               3'b011:  alu_disp_data <= {31'b0, U_ALU.zero};                    // Show Zero flag
-               3'b100:  alu_disp_data <= 32'hFFFFFFFF;                     // Show FFFFF
-               default: alu_disp_data <= 32'h0;
-               endcase
-               if(alu_disp == 3'b100) begin
-                  alu_disp <= 3'b000;
-               end
-               else begin
-                  alu_disp <= alu_disp + 1'b1;
+                  reg_disp_data <= U_pipeline_CPU.U_RF.rf[reg_addr];
                end
          end
          //display datamem
@@ -140,25 +113,24 @@ module pipeline_sccomp(clk, rstn, sw_i, reg_sel, reg_data, disp_seg_o, disp_an_o
                end
                else begin
                   dmem_addr <= dmem_addr + 1'b1;
-                  dmem_data = U_DM.dmem[dmem_addr][7:0];
+                  dmem_data = U_DM.dmem[dmem_addr][31:0];
                   //dmem_data = {dmem_addr, {dmem_data[27:0]}};  //we need to display the adderss too?
                end
          end
-         
       end
    end
 
    //accrording to swirtch, pick the corresponding signal to displays
    always @(sw_i) begin
-      if (sw_i[0] == 1'b0) begin
+      if (sw_i[0] == 1'b0) begin  // if sw_i[0] is 0, display the current state of the pipeline
          case (sw_i[14:11])
                4'b1000: display_data = instr; // ROM
-               4'b0100: display_data = reg_data; // RF
+               4'b0100: display_data = reg_disp_data; // RF
                4'b0010: display_data = alu_disp_data; // ALU
                4'b0001: display_data = dmem_data; // DMEM
-               default: display_data = instr;//? ? ?ROM
+               default: display_data = instr;// ROM
          endcase
-      end else begin
+      end else begin  // if sw_i[0] is 1, display specific data in linear order
          display_data = led_disp_data;
       end
    end
