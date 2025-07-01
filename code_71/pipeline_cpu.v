@@ -10,7 +10,10 @@ module pipeline_cpu(
     output [2:0] DMType_out,  // data memory type signal
     output [31:0] PC_out,     // PC address for instruction memory
     output [31:0] Addr_out,   // address for data memory
-    output [31:0] Data_out   // data to data memory
+    output [31:0] Data_out,   // data to data memory
+
+    input  [4:0] reg_sel,     // register selection (for debug use)
+    output [31:0] reg_data    // selected register data (for debug use)
 );
 
 // ======= 1 pipeline registers design  =======
@@ -392,4 +395,8 @@ module pipeline_cpu(
         .forwardB_branch(forwardB_branch),
         .forwardMEM(forwardMEM)
     );
+
+    // Debug register output
+    assign reg_data = (reg_sel != 0) ? U_RF.rf[reg_sel] : 0;
+
 endmodule

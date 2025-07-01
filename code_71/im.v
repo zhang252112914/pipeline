@@ -7,7 +7,7 @@ module im(input  [8:2]  addr,
 
     // added
     initial begin
-        $readmemh("test_code/coe_code/data_sim3.dat", ROM);
+        $readmemh("test_code/coe_code/non_data_sim1.dat", ROM);
     end
 
   assign dout = ROM[addr]; // word aligned

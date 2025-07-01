@@ -13,10 +13,8 @@ main:	addi x5, x0, 1
 		addi x8, x8, 1			#should run here
 		addi x9, x9, 1
 		jal  x0, end
-
 br1:	addi x7, x7, 1			#x7 = 1
 		jal  x0, end            # 12 
 		addi x8, x8, 1			#should not run
 		addi x9, x9, 1
-
 end:	addi x7, x7, 1

@@ -12,8 +12,6 @@ module pipeline_sccomp_tb();
         .clk(clk),
         .rstn(rstn),
         .sw_i(16'h0000), // No switch input for this test
-        .reg_sel(reg_sel),
-        .reg_data(reg_data),
         .disp_seg_o(),  // Not used in this test
         .disp_an_o()    // Not used in this test
     );

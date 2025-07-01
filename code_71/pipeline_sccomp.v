@@ -1,7 +1,9 @@
-module pipeline_sccomp(clk, rstn, sw_i, disp_seg_o, disp_an_o);
+module pipeline_sccomp(clk, rstn, sw_i, reg_sel, reg_data, disp_seg_o, disp_an_o);
    input          clk;
    input          rstn;
    input [15:0]   sw_i;  // 15-speed, 14-11: instr, reg, alu, dmem; 1-pause; 0-display
+   input [4:0]    reg_sel;
+   output [31:0]  reg_data;
    output [7:0]   disp_seg_o;
    output [7:0]   disp_an_o;
    
@@ -25,7 +27,7 @@ module pipeline_sccomp(clk, rstn, sw_i, disp_seg_o, disp_an_o);
    reg [63:0] display_data;
    reg [63:0] led_disp_data = 64'hFFFFFFFFFFFFFFFF;
    parameter REG_ADDR_NUM = 32;
-   parameter DMEM_ADDR_NUM = 16;
+   parameter DMEM_ADDR_NUM = 128;
    wire [31:0] alu_disp_data;
    reg [31:0] reg_disp_data;
    reg [31:0] dmem_data;
@@ -39,7 +41,7 @@ module pipeline_sccomp(clk, rstn, sw_i, disp_seg_o, disp_an_o);
       else
          clkdiv <= clkdiv + 1'b1;
    end
-   assign clk_select = (sw_i[15]) ? clkdiv[27] : clk;  //speed up and slow down, 0 stands for speed up, 1 stands for slow down
+   assign clk_select = (sw_i[15]) ? clkdiv[26] : clk;  //speed up and slow down, 0 stands for speed up, 1 stands for slow down
    assign clk_cpu = cpu_pause ? 1'b0 : clk_select;
 
   // instantiation of pipeline CPU   
@@ -52,7 +54,9 @@ module pipeline_sccomp(clk, rstn, sw_i, disp_seg_o, disp_an_o);
          .PC_out(PC),               // output: PC
          .Addr_out(dm_addr),        // output: address from cpu to memory
          .Data_out(dm_din),         // output: data from cpu to memory
-         .DMType_out(dm_type)         // output: data memory type
+         .DMType_out(dm_type),         // output: data memory type
+         .reg_sel(reg_sel),         // input:  register selection
+         .reg_data(reg_data)        // output: register data
          );
 
    // instantiation of data memory  
@@ -84,13 +88,11 @@ module pipeline_sccomp(clk, rstn, sw_i, disp_seg_o, disp_an_o);
    assign alu_disp_data = U_pipeline_CPU.EXMEM_ALUOut; // ALU output
 
    //this always block is used to demostrate the state of each component
-   always @(posedge clk_select or negedge rstn) begin
+   always @(posedge clk_cpu or negedge rstn) begin
       //clear
       if (!rstn) begin
          reg_addr <= 0;
          dmem_addr <= 0;
-         reg_disp_data <= 32'hFFFFFFFF;
-         dmem_data <= 32'hFFFFFFFF;
          led_disp_data <= 64'hFFFFFFFFFFFFFFFF;
       //display other parts' contents
       end else begin
@@ -107,11 +109,11 @@ module pipeline_sccomp(clk, rstn, sw_i, disp_seg_o, disp_an_o);
          else if(sw_i[11] == 1'b1) begin
                if(dmem_addr == DMEM_ADDR_NUM)begin
                   dmem_addr <= 0;
-                  dmem_data <= 32'hFFFFFFFF;
+                  dmem_data = 32'hFFFFFFFF;
                end
                else begin
                   dmem_addr <= dmem_addr + 1'b1;
-                  dmem_data <= U_DM.dmem[dmem_addr][31:0];
+                  dmem_data = U_DM.dmem[dmem_addr][31:0];
                   //dmem_data = {dmem_addr, {dmem_data[27:0]}};  //we need to display the adderss too?
                end
          end
