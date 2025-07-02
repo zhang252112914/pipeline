@@ -26,9 +26,14 @@
 //        $display("r[%2d] = 0x%8X,", A3, WD);
       end
     
+    assign RD1 = (A1 != 0) ? 
+                 ((RFWr && (A1 == A3)) ? WD : rf[A1]) : 0;
+                 
+    assign RD2 = (A2 != 0) ? 
+                 ((RFWr && (A2 == A3)) ? WD : rf[A2]) : 0;
 
-  assign RD1 = (A1 != 0) ? rf[A1] : 0;
-  assign RD2 = (A2 != 0) ? rf[A2] : 0;
+  // assign RD1 = (A1 != 0) ? rf[A1] : 0;
+  // assign RD2 = (A2 != 0) ? rf[A2] : 0;
   //assign reg_data = (reg_sel != 0) ? rf[reg_sel] : 0; 
 
 endmodule
