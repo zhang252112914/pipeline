@@ -33,20 +33,7 @@ module forwarding_unit(
         forwardA_branch = 2'b00;
         forwardB_branch = 2'b00;
         forwardMEM = 1'b0;
-        
-        // EX hazard (forwarding from MEM stage)
-        // Forward if:
-        // 1. MEM stage writes to a register
-        // 2. The register being written is not x0
-        // 3. The register being written matches rs1 or rs2 in EX stage
-        if (RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs1_EX)) begin
-            forwardA = 2'b10;
-        end
-        
-        if (RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs2_EX)) begin
-            forwardB = 2'b10;
-        end
-        
+
         // MEM hazard (forwarding from WB stage)
         // Forward if:
         // 1. WB stage writes to a register
@@ -63,35 +50,19 @@ module forwarding_unit(
             forwardB = 2'b01;
         end
         
-        // Branch forwarding from EX stage (EX-to-ID forwarding) - HIGHEST PRIORITY
-        // Forward if:
-        // 1. EX stage writes to a register 
-        // 2. The register being written is not x0
-        // 3. The register being written matches rs1 or rs2 in ID stage
-        if (RegWrite_EX && (rd_EX != 0) && (rd_EX == rs1_ID)) begin
-            forwardA_branch = 2'b11;
-        end
-        
-        if (RegWrite_EX && (rd_EX != 0) && (rd_EX == rs2_ID)) begin
-            forwardB_branch = 2'b11;
-        end
-        
-        // Branch forwarding from MEM stage (MEM-to-ID forwarding)
+        // EX hazard (forwarding from MEM stage)
         // Forward if:
         // 1. MEM stage writes to a register
         // 2. The register being written is not x0
-        // 3. The register being written matches rs1 or rs2 in ID stage
-        // 4. EX-to-ID hazard condition is not met (EX has higher priority)
-        if (RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs1_ID) &&
-            !(RegWrite_EX && (rd_EX != 0) && (rd_EX == rs1_ID))) begin
-            forwardA_branch = 2'b10;
+        // 3. The register being written matches rs1 or rs2 in EX stage
+        if (RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs1_EX)) begin
+            forwardA = 2'b10;
         end
         
-        if (RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs2_ID) &&
-            !(RegWrite_EX && (rd_EX != 0) && (rd_EX == rs2_ID))) begin
-            forwardB_branch = 2'b10;
+        if (RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs2_EX)) begin
+            forwardB = 2'b10;
         end
-        
+
         // Branch forwarding from WB stage (WB-to-ID forwarding)
         // Forward if:
         // 1. WB stage writes to a register
@@ -108,6 +79,35 @@ module forwarding_unit(
             !(RegWrite_EX && (rd_EX != 0) && (rd_EX == rs2_ID)) &&
             !(RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs2_ID))) begin
             forwardB_branch = 2'b01;
+        end
+
+        // Branch forwarding from MEM stage (MEM-to-ID forwarding)
+        // Forward if:
+        // 1. MEM stage writes to a register
+        // 2. The register being written is not x0
+        // 3. The register being written matches rs1 or rs2 in ID stage
+        // 4. EX-to-ID hazard condition is not met (EX has higher priority)
+        if (RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs1_ID) &&
+            !(RegWrite_EX && (rd_EX != 0) && (rd_EX == rs1_ID))) begin
+            forwardA_branch = 2'b10;
+        end
+        
+        if (RegWrite_MEM && (rd_MEM != 0) && (rd_MEM == rs2_ID) &&
+            !(RegWrite_EX && (rd_EX != 0) && (rd_EX == rs2_ID))) begin
+            forwardB_branch = 2'b10;
+        end
+        
+        // Branch forwarding from EX stage (EX-to-ID forwarding) - HIGHEST PRIORITY
+        // Forward if:
+        // 1. EX stage writes to a register 
+        // 2. The register being written is not x0
+        // 3. The register being written matches rs1 or rs2 in ID stage
+        if (RegWrite_EX && (rd_EX != 0) && (rd_EX == rs1_ID)) begin
+            forwardA_branch = 2'b11;
+        end
+        
+        if (RegWrite_EX && (rd_EX != 0) && (rd_EX == rs2_ID)) begin
+            forwardB_branch = 2'b11;
         end
         
         // WB-to-MEM forwarding (for store instructions)

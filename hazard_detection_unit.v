@@ -47,24 +47,20 @@ module hazard_detection_unit(
                                    
     assign branch_load_hazard = branch_load_hazard_EX || branch_load_hazard_MEM;
 
-    // Branch-arithmetic hazard detection (branch depends on arithmetic result)
+    // Branch-arithmetic hazard detection (branch depends on arithmetic result), need to stall for ONE cycle
     wire branch_arith_hazard;
     assign branch_arith_hazard = IsBranch_ID && !MemRead_EX && RegWrite_EX && rd_EX != 0 &&
                                 ((rd_EX == rs1_ID) || (rd_EX == rs2_ID));
 
     // JALR-load hazard detection (JALR depends on load result)
-    // Need to stall for TWO cycles: when load is in EX stage AND when load is in MEM stage
+    // Need to stall for ONE cycles: when load is in EX stage
     wire jalr_load_hazard_EX;  // Load in EX stage
-    wire jalr_load_hazard_MEM; // Load in MEM stage
     wire jalr_load_hazard;
     
     assign jalr_load_hazard_EX = IsJALR_ID && MemRead_EX && RegWrite_EX && rd_EX != 0 &&
                                 (rd_EX == rs1_ID);
-                                
-    assign jalr_load_hazard_MEM = IsJALR_ID && MemRead_MEM && RegWrite_MEM && rd_MEM != 0 &&
-                                 (rd_MEM == rs1_ID);
                                  
-    assign jalr_load_hazard = jalr_load_hazard_EX || jalr_load_hazard_MEM;
+    assign jalr_load_hazard = jalr_load_hazard_EX;
 
     // JALR-arithmetic hazard detection (JALR depends on arithmetic result)  
     wire jalr_arith_hazard;
@@ -92,7 +88,7 @@ module hazard_detection_unit(
         // Handle branch-arithmetic hazard (branch depends on arithmetic)
         if (branch_arith_hazard) begin
             stall = 1'b1;        // Stall IF and ID stages
-            // Do NOT flush EX stage - let arithmetic instruction advance to MEM for forwarding
+            flush_IDEX = 1'b1;   // Insert bubble in EX stage
         end
         
         // Handle JALR-load hazard (JALR depends on load)
@@ -105,7 +101,7 @@ module hazard_detection_unit(
         // Handle JALR-arithmetic hazard (JALR depends on arithmetic)
         if (jalr_arith_hazard) begin
             stall = 1'b1;        // Stall IF and ID stages
-            // Do NOT flush EX stage - let arithmetic instruction advance to MEM for forwarding
+            flush_IDEX = 1'b1;   // Insert bubble in EX stage
         end
         
         // Handle control hazard (branch taken)
